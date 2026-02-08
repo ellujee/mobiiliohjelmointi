@@ -6,23 +6,23 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.viikkotehtava2android.viewmodel.TaskViewModel
 import com.example.viikkotehtava2android.model.Task
 
 @Composable
 fun HomeScreen(
-    modifier: Modifier = Modifier,
-    viewModel: TaskViewModel = viewModel()
+    viewModel: TaskViewModel,
+    onNavigateToCalendar: () -> Unit,
+    onNavigateToSettings: () -> Unit
 ) {
-    val taskList = viewModel.tasks
-    var newTaskTitle by remember { mutableStateOf("") }
-
+    val tasks by viewModel.tasks.collectAsState()
+    var isAddingTask by remember { mutableStateOf(false) }
 
     viewModel.editingTask?.let { task ->
         DetailDialog(
@@ -33,33 +33,56 @@ fun HomeScreen(
         )
     }
 
-    Column(modifier = modifier.padding(16.dp)) {
-        Text(text = "Tehtävälista", style = MaterialTheme.typography.headlineMedium)
+    if (isAddingTask) {
+        DetailDialog(
+            task = Task(id = 0, title = "", description = "", priority = 1, dueDate = "2026-02-10", done = false),
+            onDismiss = { isAddingTask = false },
+            onConfirm = { newTask ->
+                val nextId = (tasks.maxOfOrNull { it.id } ?: 0) + 1
+                viewModel.addTask(newTask.copy(id = nextId))
+                isAddingTask = false
+            },
+            onDelete = { isAddingTask = false }
+        )
+    }
+
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(text = "Tehtävälista", style = MaterialTheme.typography.headlineMedium)
+
+            IconButton(onClick = onNavigateToSettings) {
+                Icon(
+                    imageVector = Icons.Default.Settings,
+                    contentDescription = "Asetukset",
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
+        }
 
         Spacer(modifier = Modifier.height(16.dp))
 
-
-        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            TextField(
-                value = newTaskTitle,
-                onValueChange = { newTaskTitle = it },
-                modifier = Modifier.weight(1f),
-                label = { Text("Uusi tehtävä") }
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Button(onClick = {
-                if (newTaskTitle.isNotBlank()) {
-                    val nextId = (taskList.maxOfOrNull { it.id } ?: 0) + 1
-                    viewModel.addTask(Task(nextId, newTaskTitle, "", 1, "2026-01-01", false))
-                    newTaskTitle = ""
-                }
-            }) {
-                Text("Lisää")
-            }
+        Button(
+            onClick = onNavigateToCalendar,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Kalenteri")
         }
 
         Spacer(modifier = Modifier.height(8.dp))
 
+        Button(
+            onClick = { isAddingTask = true },
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+        ) {
+            Text("Uusi tehtävä")
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
 
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -78,17 +101,16 @@ fun HomeScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            items(taskList) { task ->
+            items(tasks) { task ->
                 TaskRow(
                     task = task,
                     onToggle = { viewModel.toggleDone(task.id) },
                     onDelete = { viewModel.removeTask(task.id) },
-                    onClick = { viewModel.editTask(task) } // Avaa dialogin
+                    onClick = { viewModel.editTask(task) }
                 )
             }
         }
